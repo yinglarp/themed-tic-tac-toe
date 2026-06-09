@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic Tac Toe</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    overflow: hidden;
+    transition: background 0.6s ease;
+  }
+  #fx {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  h1 {
+    margin-bottom: 8px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  #themes {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 360px;
+  }
+  .theme-btn {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border: 2px solid transparent;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.85);
+    color: #444;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.08s, border-color 0.2s, background 0.2s;
+  }
+  .theme-btn:hover { transform: scale(1.05); background: #fff; }
+  .theme-btn.active { background: #fff; }
+  #status {
+    font-size: 1.25rem;
+    margin-bottom: 20px;
+    height: 28px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    grid-template-rows: repeat(3, 100px);
+    gap: 8px;
+    background: rgba(255,255,255,0.25);
+    padding: 8px;
+    border-radius: 12px;
+    transition: background 0.4s;
+  }
+  .cell {
+    background: rgba(255,255,255,0.95);
+    border: none;
+    border-radius: 8px;
+    font-size: 2.6rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.08s, background 0.2s;
+    color: #444;
+  }
+  .cell:hover:not(:disabled) { background: #fff; transform: scale(1.03); }
+  .cell.win { background: #ffe680 !important; }
+  .cell:disabled { cursor: default; }
+  #reset {
+    margin-top: 24px;
+    padding: 10px 24px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    background: #fff;
+    color: #333;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.08s;
+  }
+  #reset:hover { transform: scale(1.05); }
+</style>
+</head>
+<body>
+  <canvas id="fx"></canvas>
+  <h1>Tic Tac Toe</h1>
+  <div id="themes"></div>
+  <div id="status">Player X's turn</div>
+  <div id="board"></div>
+  <button id="reset">New Game</button>
+
+<script>
+  const board = document.getElementById('board');
+  const status = document.getElementById('status');
+  const resetBtn = document.getElementById('reset');
+  const themesBar = document.getElementById('themes');
+
+  const wins = [
+    [0,1,2],[3,4,5],[6,7,8], // rows
+    [0,3,6],[1,4,7],[2,5,8], // cols
+    [0,4,8],[2,4,6]          // diagonals
+  ];
+
+  // --- Themes -------------------------------------------------------------
+  const THEMES = {
+    default: {
+      name: '🎮 Classic',
+      bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      x: 'X', o: 'O', xColor: '#e74c3c', oColor: '#2980b9',
+      particle: 'none', accent: '#764ba2'
+    },
+    christmas: {
+      name: '🎄 Christmas',
+      bg: 'linear-gradient(135deg, #0b3d2e 0%, #8b1a1a 100%)',
+      x: '🎄', o: '⛄', xColor: '#fff', oColor: '#fff',
+      particle: 'snow', accent: '#c0392b'
+    },
+    cny: {
+      name: '🧧 New Year',
+      bg: 'linear-gradient(135deg, #8b0000 0%, #d4af37 100%)',
+      x: '🧧', o: '🐉', xColor: '#fff', oColor: '#fff',
+      particle: 'fireworks', accent: '#d4af37'
+    },
+    valentine: {
+      name: '❤️ Valentine',
+      bg: 'linear-gradient(135deg, #ff6a88 0%, #c0356f 100%)',
+      x: '❤️', o: '💌', xColor: '#fff', oColor: '#fff',
+      particle: 'hearts', accent: '#c0356f'
+    },
+    halloween: {
+      name: '🎃 Halloween',
+      bg: 'linear-gradient(135deg, #2c1338 0%, #d35400 100%)',
+      x: '🎃', o: '👻', xColor: '#fff', oColor: '#fff',
+      particle: 'bats', accent: '#d35400'
+    }
+  };
+
+  let currentTheme = 'default';
+
+  // --- Game state ---------------------------------------------------------
+  let cells = [];
+  let state = Array(9).fill('');   // logical marks: '', 'X', 'O'
+  let current = 'X';
+  let over = false;
+
+  function symbolFor(mark) {
+    const t = THEMES[currentTheme];
+    return mark === 'X' ? t.x : t.o;
+  }
+
+  function colorFor(mark) {
+    const t = THEMES[currentTheme];
+    return mark === 'X' ? t.xColor : t.oColor;
+  }
+
+  function init() {
+    state = Array(9).fill('');
+    current = 'X';
+    over = false;
+    board.innerHTML = '';
+    cells = [];
+    status.textContent = "Player X's turn";
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('button');
+      cell.className = 'cell';
+      cell.addEventListener('click', () => play(i));
+      board.appendChild(cell);
+      cells.push(cell);
+    }
+  }
+
+  function play(i) {
+    if (over || state[i]) return;
+    state[i] = current;
+    renderCell(i);
+
+    const combo = getWin(current);
+    if (combo) {
+      over = true;
+      combo.forEach(idx => cells[idx].classList.add('win'));
+      status.textContent = `Player ${current} wins! 🎉`;
+      cells.forEach(c => c.disabled = true);
+      return;
+    }
+
+    if (state.every(s => s)) {
+      over = true;
+      status.textContent = "It's a draw!";
+      return;
+    }
+
+    current = current === 'X' ? 'O' : 'X';
+    status.textContent = `Player ${current}'s turn`;
+  }
+
+  function renderCell(i) {
+    const mark = state[i];
+    if (!mark) {
+      cells[i].textContent = '';
+      return;
+    }
+    cells[i].textContent = symbolFor(mark);
+    cells[i].style.color = colorFor(mark);
+  }
+
+  function getWin(player) {
+    return wins.find(combo => combo.every(idx => state[idx] === player)) || null;
+  }
+
+  // --- Theme switching ----------------------------------------------------
+  function setTheme(id) {
+    currentTheme = id;
+    const t = THEMES[id];
+    document.body.style.background = t.bg;
+    // Re-render any placed marks in the new theme's symbols.
+    for (let i = 0; i < 9; i++) renderCell(i);
+    // Update active button + accent.
+    [...themesBar.children].forEach(btn => {
+      const active = btn.dataset.id === id;
+      btn.classList.toggle('active', active);
+      btn.style.borderColor = active ? t.accent : 'transparent';
+      btn.style.color = active ? t.accent : '#444';
+    });
+    resetBtn.style.color = t.accent;
+    resetParticles();
+  }
+
+  function buildThemeButtons() {
+    Object.keys(THEMES).forEach(id => {
+      const btn = document.createElement('button');
+      btn.className = 'theme-btn';
+      btn.dataset.id = id;
+      btn.textContent = THEMES[id].name;
+      btn.addEventListener('click', () => setTheme(id));
+      themesBar.appendChild(btn);
+    });
+  }
+
+  // --- Background particle animation -------------------------------------
+  const canvas = document.getElementById('fx');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+
+  function sizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', sizeCanvas);
+  sizeCanvas();
+
+  function rand(min, max) { return Math.random() * (max - min) + min; }
+
+  function resetParticles() {
+    particles = [];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function spawn() {
+    const type = THEMES[currentTheme].particle;
+    const W = canvas.width, H = canvas.height;
+    if (type === 'snow' && particles.length < 120) {
+      particles.push({ x: rand(0, W), y: -10, vx: rand(-0.4, 0.4), vy: rand(0.6, 1.8), size: rand(2, 5), kind: 'snow' });
+    } else if (type === 'hearts' && particles.length < 50) {
+      particles.push({ x: rand(0, W), y: H + 20, vx: rand(-0.4, 0.4), vy: rand(-1.4, -0.6), size: rand(14, 28), glyph: '❤️', kind: 'glyph', life: 1 });
+    } else if (type === 'bats' && particles.length < 35) {
+      particles.push({ x: rand(0, W), y: rand(0, H), vx: rand(-1.2, -0.4), vy: rand(-0.5, 0.5), size: rand(16, 30), glyph: Math.random() < 0.5 ? '🦇' : '👻', kind: 'glyph', life: 1 });
+    } else if (type === 'fireworks' && Math.random() < 0.04) {
+      const cx = rand(W * 0.15, W * 0.85), cy = rand(H * 0.1, H * 0.55);
+      const hue = Math.floor(rand(0, 360));
+      const n = 24;
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n;
+        const sp = rand(1.5, 4);
+        particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, size: rand(2, 4), kind: 'spark', life: 1, color: `hsl(${hue}, 90%, 60%)` });
+      }
+    }
+  }
+
+  function tick() {
+    const type = THEMES[currentTheme].particle;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (type !== 'none') spawn();
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (p.kind === 'snow') {
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        if (p.y > canvas.height + 10) particles.splice(i, 1);
+      } else if (p.kind === 'spark') {
+        p.vy += 0.04;            // gravity
+        p.life -= 0.012;
+        ctx.globalAlpha = Math.max(p.life, 0);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        if (p.life <= 0) particles.splice(i, 1);
+      } else if (p.kind === 'glyph') {
+        ctx.globalAlpha = 0.9;
+        ctx.font = `${p.size}px serif`;
+        ctx.fillText(p.glyph, p.x, p.y);
+        const off = p.y < -30 || p.y > canvas.height + 30 || p.x < -30 || p.x > canvas.width + 30;
+        if (off) particles.splice(i, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(tick);
+  }
+
+  // --- Boot ---------------------------------------------------------------
+  resetBtn.addEventListener('click', init);
+  buildThemeButtons();
+  init();
+  setTheme('default');
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>

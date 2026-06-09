@@ -22,6 +22,10 @@ When adding a theme, add an entry to `THEMES`; the picker buttons (`buildThemeBu
 
 The background animation is a single `requestAnimationFrame` loop (`tick()`) over a fixed full-screen `<canvas id="fx">`. Particles are a flat array of `{x, y, vx, vy, size, kind, ...}`; `kind` (`snow`/`spark`/`glyph`) selects the draw path. The canvas resizes with the window via `sizeCanvas()`.
 
+## Committing
+
+Always commit changes after completing a change, with a meaningful message that explains what changed and why (not just "update files"). Push to `origin/main` so the deployed GitHub Pages site stays current.
+
 ## Deploying
 
 Hosted as a public GitHub repo. Since it's a static single file, GitHub Pages can serve it directly with no configuration.
